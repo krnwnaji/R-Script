@@ -3,7 +3,7 @@ library(tidyverse)
 library(ggplot2)
 library(plotly)
 
-data <- read_csv("Recap Nov_Jan 2023 Plot Model TC.csv")
+data <- read_csv("replace this with your file")
 data[is.na(data)] <- 0
 data_sum <- data %>%
   mutate(
