@@ -1,0 +1,155 @@
+```{r}
+library(dplyr)
+library(sf)
+library(tidyverse)
+library(stringr)
+
+
+format <- ".shp"
+
+labelFiles <- list.files('label/',pattern = paste0("*",format))
+modelFiles <- list.files('model/',pattern = paste0("*",format))
+output <- '~/R Kurniawan/R TC Model F1 Score/Input/old/output/'
+
+petak <-  str_sub(modelFiles,start = 14,end = 23)
+petak
+
+petakRev <- petak[1]
+petakRev
+
+# cek <- read_sf('model/model_res_GLBC020803_Plot.gpkg')
+
+View(rLabel)
+
+for(i in petak){
+  rLabel <- read_sf(paste0("label/result_label_",i,"_Plot",format)) %>% 
+    as_tibble()
+  rModel <- read_sf(paste0("model/result_model_",i,"_Plot",format)) %>% 
+    as_tibble()
+  removeDuplicates <- rLabel[!duplicated.data.frame(rLabel$id)]
+  sum_rLabel <- removeDuplicates %>% 
+    group_by(id_2) %>%
+    summarise(
+      FN = sum(Cat_L=='FN', na.rm = TRUE),
+      TP = sum(Cat_L=='TP', na.rm = TRUE)
+    ) %>% 
+    mutate(
+      petakid = i
+    )
+  sum_rModel <- rModel %>% 
+    group_by(id_2) %>% 
+    summarise(
+      FP = sum(Cat_M=='FP', na.rm = TRUE)
+    ) %>% 
+    mutate(
+      petakid = i
+    )
+  combine.plot <- full_join(sum_rLabel,sum_rModel)
+  
+  FN <- combine.plot %>% 
+    select('FN')
+  TP <- combine.plot %>% 
+    select('TP')
+  FP <- combine.plot %>% 
+    select('FP')
+  TN <-  0
+
+  plot.result <- tibble(
+    plot = combine.plot$id_2,
+    name = i,
+    TP = TP,
+    FP = FP,
+    FN = FN,
+    TN = TN,
+    accuracy=round((TP+TN)/(TP+TN+FP+FN),2),
+    Precision=round((TP)/(TP+FP),2),
+    recall=round(TP/(TP+FN),2),
+    f1score=round(2 * ((Precision*recall)/(Precision+recall)),2)
+  )
+
+  matrix.plot <- as.matrix(plot.result)
+  table <- as.data.frame(matrix.plot)
+  print(table)
+  write <- write.table(
+    table,
+    file=paste0(output,'Plot_f1_score_', i,'.csv'), 
+    row.names = FALSE, 
+    quote = FALSE,
+    append = FALSE,
+    sep = "|"
+  )
+  print(write)
+}
+
+```
+
+```{r}
+files <- list.files(output,full.names = TRUE) %>% 
+  lapply(read.csv,sep = "|") %>% 
+  bind_rows()
+files
+write.table(files,file = paste0(output,"Summary.xls"),row.names = FALSE)
+
+summ <- files %>% 
+  group_by(name) %>% 
+  summarise(
+    Precision = round(mean(Precision),2),
+    recall = round(mean(recall),2),
+    F1Score = round(mean(f1score),2)
+  )
+summ
+
+summ2 <- files %>% 
+  group_by(name) %>% 
+  summarise(
+    TP = sum(TP),
+    TN = sum(TN),
+    FP = sum(FP),
+    FN = sum(FN)
+  ) %>% 
+  mutate(
+    accuracy=round((TP+TN)/(TP+TN+FP+FN),2),
+    Precision=round((TP)/(TP+FP),2),
+    recall=round(TP/(TP+FN),2),
+    f1score=round(2 * ((Precision*recall)/(Precision+recall)),2)
+  )
+summ2
+write.table(summ2,file = paste0(output,"Summary2.xls"),row.names = FALSE)
+
+
+
+  
+```
+
+
+```{r}
+
+# esquisse::esquisser(files)
+
+library(ggplot2)
+
+## F1 Score
+ggplot(files) +
+  aes(x = name, y = f1score, fill = name) +
+  geom_boxplot() +
+  theme_minimal() +
+  geom_hline(yintercept = 0.85, color = "red")+
+  labs(x = "PetakID", fill = "Petak ID")
+
+## Recall
+ggplot(files) +
+  aes(x = name, y = recall, fill = name) +
+  geom_boxplot() +
+  theme_minimal() +
+  # geom_hline(yintercept = 0.85, color = "red")+
+  labs(x = "PetakID", fill = "Petak ID")
+
+## PRecision
+ggplot(files) +
+  aes(x = name, y = Precision, fill = name) +
+  geom_boxplot() +
+  theme_minimal() +
+  # geom_hline(yintercept = 0.85, color = "red")+
+  labs(x = "PetakID", fill = "Petak ID")
+```
+
